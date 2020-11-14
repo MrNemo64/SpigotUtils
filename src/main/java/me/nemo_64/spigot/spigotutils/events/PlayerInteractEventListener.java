@@ -11,105 +11,150 @@ public interface PlayerInteractEventListener extends Listener {
 	public default void onPlayerInteractEvent(PlayerInteractEvent e) {
 		if (e.getAction() == Action.LEFT_CLICK_BLOCK || e.getAction() == Action.RIGHT_CLICK_BLOCK) {
 			onBlockInteract(e);
+			if (e.getAction() == Action.LEFT_CLICK_BLOCK) {
+				onLeftClickBlockInteract(e);
+				if (e.getPlayer().isSneaking()) {
+					onLeftClickBlockShiftInteract(e);
+				} else {
+					onLeftClickBlockNoShiftInteract(e);
+				}
+			} else if (e.getAction() == Action.RIGHT_CLICK_BLOCK) {
+				onRightClickBlockInteract(e);
+				if (e.getPlayer().isSneaking()) {
+					onRightClickBlockShiftInteract(e);
+				} else {
+					onRightClickBlockNoShiftInteract(e);
+				}
+			}
 		} else if (e.getAction() == Action.LEFT_CLICK_AIR || e.getAction() == Action.RIGHT_CLICK_AIR) {
-			onInteract(e);
+			onAirInteract(e);
+			if (e.getAction() == Action.LEFT_CLICK_AIR) {
+				onLeftClickAirInteract(e);
+				if (e.getPlayer().isSneaking()) {
+					onLeftClickAirShiftInteract(e);
+				} else {
+					onLeftClickAirNoShiftInteract(e);
+				}
+			} else if (e.getAction() == Action.RIGHT_CLICK_AIR) {
+				onRightClickAirInteract(e);
+				if (e.getPlayer().isSneaking()) {
+					onRightClickAirShiftInteract(e);
+				} else {
+					onRightClickAirNoShiftInteract(e);
+				}
+			}
 		}
 	}
 
 	/**
-	 * Called when the player interacts with a block
+	 * Called when a player right clicks air without sneaking
 	 * 
 	 * @param e The event
 	 */
-	public default void onBlockInteract(PlayerInteractEvent e) {
-		if (e.getAction() == Action.LEFT_CLICK_BLOCK) {
-			onLeftClickBlockInteract(e);
-		} else if (e.getAction() == Action.RIGHT_CLICK_BLOCK) {
-			onRightClickBlockInteract(e);
-		}
-	}
+	public void onRightClickAirNoShiftInteract(PlayerInteractEvent e);
 
 	/**
-	 * Called when the player makes a left click on a block
+	 * Called when a player right clicks air while sneaking
 	 * 
 	 * @param e The event
 	 */
-	public default void onLeftClickBlockInteract(PlayerInteractEvent e) {
-		if (e.getPlayer().isSneaking())
-			onLeftClickBlockShiftInteract(e);
-	}
+	public void onRightClickAirShiftInteract(PlayerInteractEvent e);
 
 	/**
-	 * Called when the player makes a right click on a block
+	 * Called when a player right clicks air with or without sneaking. After this
+	 * method is called,
+	 * {@link #onRightClickAirNoShiftInteract(PlayerInteractEvent)} or
+	 * {@link #onRightClickAirShiftInteract(PlayerInteractEvent)} will be called
 	 * 
 	 * @param e The event
 	 */
-	public default void onRightClickBlockInteract(PlayerInteractEvent e) {
-		if (e.getPlayer().isSneaking())
-			onRightClickBlockShiftInteract(e);
-	}
+	public void onRightClickAirInteract(PlayerInteractEvent e);
 
 	/**
-	 * Called when the player makes a left click on a block while sneaking
+	 * Called when a player left clicks air without sneaking
 	 * 
 	 * @param e The event
 	 */
-	public void onLeftClickBlockShiftInteract(PlayerInteractEvent e);
+	public void onLeftClickAirNoShiftInteract(PlayerInteractEvent e);
 
 	/**
-	 * Called when the player makes a right click on a block while sneaking
+	 * Called when a player left clicks air while sneaking
+	 * 
+	 * @param e The event
+	 */
+	public void onLeftClickAirShiftInteract(PlayerInteractEvent e);
+
+	/**
+	 * Called when a player left clicks air with or without sneaking. After this
+	 * method is called, {@link #onLeftClickAirNoShiftInteract(PlayerInteractEvent)}
+	 * or {@link #onLeftClickAirShiftInteract(PlayerInteractEvent)} will be called
+	 * 
+	 * @param e The event
+	 */
+	public void onLeftClickAirInteract(PlayerInteractEvent e);
+
+	/**
+	 * Called when a player interacts with air. After this method is called,
+	 * {@link #onRightClickAirInteract(PlayerInteractEvent)} or
+	 * {@link #onLeftClickAirInteract(PlayerInteractEvent)} will be called
+	 * 
+	 * @param e The event
+	 */
+	public void onAirInteract(PlayerInteractEvent e);
+
+	/**
+	 * Called when a player right clicks a block without sneaking
+	 * 
+	 * @param e The event
+	 */
+	public void onRightClickBlockNoShiftInteract(PlayerInteractEvent e);
+
+	/**
+	 * Called when a player right clicks a block while sneaking
 	 * 
 	 * @param e The event
 	 */
 	public void onRightClickBlockShiftInteract(PlayerInteractEvent e);
 
 	/**
-	 * Called when the player doesn't interacts with a block
+	 * Called when a player right clicks a block with or without sneaking. After
+	 * this method, {@link #onRightClickBlockShiftInteract(PlayerInteractEvent)} or
+	 * {@link #onRightClickBlockNoShiftInteract(PlayerInteractEvent)} will be called
 	 * 
 	 * @param e The event
 	 */
-	public default void onInteract(PlayerInteractEvent e) {
-		if (e.getAction() == Action.LEFT_CLICK_AIR) {
-			onLeftClickInteract(e);
-		} else if (e.getAction() == Action.RIGHT_CLICK_AIR) {
-			onRightClickInteract(e);
-		}
-	}
+	public void onRightClickBlockInteract(PlayerInteractEvent e);
 
 	/**
-	 * Called when the player doesn't interacts with a block and does a left click
+	 * Called when a player left clicks a block without sneaking
 	 * 
 	 * @param e The event
 	 */
-	public default void onLeftClickInteract(PlayerInteractEvent e) {
-		if (e.getPlayer().isSneaking())
-			onLeftClickShiftInteract(e);
-	}
+	public void onLeftClickBlockNoShiftInteract(PlayerInteractEvent e);
 
 	/**
-	 * Called when the player doesn't interacts with a block and does a right click
+	 * Called when a player left clicks a block while sneaking
 	 * 
 	 * @param e The event
 	 */
-	public default void onRightClickInteract(PlayerInteractEvent e) {
-		if (e.getPlayer().isSneaking())
-			onRightClickShiftInteract(e);
-	}
+	public void onLeftClickBlockShiftInteract(PlayerInteractEvent e);
 
 	/**
-	 * Called when the player doesn't interacts with a block and does a left click
-	 * while sneaking
+	 * Called when a player left clicks a block with or without sneaking. After this
+	 * method, {@link #onLeftClickBlockShiftInteract(PlayerInteractEvent)} or
+	 * {@link #onLeftClickBlockNoShiftInteract(PlayerInteractEvent)} will be called
 	 * 
 	 * @param e The event
 	 */
-	public void onLeftClickShiftInteract(PlayerInteractEvent e);
+	public void onLeftClickBlockInteract(PlayerInteractEvent e);
 
 	/**
-	 * Called when the player doesn't interacts with a block and does a right click
-	 * while sneaking
+	 * Called when a player interacts with a block. After this method is called,
+	 * {@link #onRightClickBlockInteract(PlayerInteractEvent)} or
+	 * {@link #onLeftClickBlockInteract(PlayerInteractEvent)} will be called
 	 * 
 	 * @param e The event
 	 */
-	public void onRightClickShiftInteract(PlayerInteractEvent e);
+	public void onBlockInteract(PlayerInteractEvent e);
 
 }
