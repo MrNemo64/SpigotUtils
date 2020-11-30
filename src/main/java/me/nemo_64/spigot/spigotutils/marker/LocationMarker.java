@@ -97,10 +97,14 @@ public class LocationMarker {
 
 			Class<?> nmsWorldClass = ReflectionUtils.getNMSClass("World");
 			if (entityShulkerClass != null && nmsWorldClass != null) {
-				Class<?> entityTypesClass = ReflectionUtils.getNMSClass("EntityTypes");
-				if (entityTypesClass != null) {
-					entityTypesShulkerField = entityTypesClass.getField("SHULKER");
-					entityShulkerConstructor = entityShulkerClass.getConstructor(entityTypesClass, nmsWorldClass);
+				if (ReflectionUtils.VERSION_NUMBER >= 14) { // 1.14+
+					Class<?> entityTypesClass = ReflectionUtils.getNMSClass("EntityTypes");
+					if (entityTypesClass != null) {
+						entityTypesShulkerField = entityTypesClass.getField("SHULKER");
+						entityShulkerConstructor = entityShulkerClass.getConstructor(entityTypesClass, nmsWorldClass);
+					}
+				} else {
+					entityShulkerConstructor = entityShulkerClass.getConstructor(nmsWorldClass);
 				}
 			}
 		} catch(NoSuchMethodException e) {
@@ -214,13 +218,19 @@ public class LocationMarker {
 	}
 
 	private static Object createShulker(World world) {
-		if (entityShulkerConstructor == null || worldGetHandleMethod == null || entityTypesShulkerField == null)
+		if (entityShulkerConstructor == null || worldGetHandleMethod == null)
+			return null;
+		if (ReflectionUtils.VERSION_NUMBER >= 14 && entityTypesShulkerField == null)
 			return null;
 		Object w = worldToCraftWorld(world);
 		if (w == null)
 			return null;
 		try {
-			return entityShulkerConstructor.newInstance(entityTypesShulkerField.get(null), worldGetHandleMethod.invoke(w));
+			if (ReflectionUtils.VERSION_NUMBER >= 14) {
+				return entityShulkerConstructor.newInstance(entityTypesShulkerField.get(null), worldGetHandleMethod.invoke(w));
+			} else {
+				return entityShulkerConstructor.newInstance(worldGetHandleMethod.invoke(w));
+			}
 		} catch(InstantiationException e) {
 			e.printStackTrace();
 		} catch(IllegalAccessException e) {
