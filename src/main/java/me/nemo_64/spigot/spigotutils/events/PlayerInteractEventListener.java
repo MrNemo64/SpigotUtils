@@ -10,37 +10,43 @@ public interface PlayerInteractEventListener extends Listener {
 	@EventHandler
 	public default void onPlayerInteractEvent(PlayerInteractEvent e) {
 		if (e.getAction() == Action.LEFT_CLICK_BLOCK || e.getAction() == Action.RIGHT_CLICK_BLOCK) {
-			onBlockInteract(e);
-			if (e.getAction() == Action.LEFT_CLICK_BLOCK) {
-				onLeftClickBlockInteract(e);
-				if (e.getPlayer().isSneaking()) {
-					onLeftClickBlockShiftInteract(e);
-				} else {
-					onLeftClickBlockNoShiftInteract(e);
-				}
-			} else if (e.getAction() == Action.RIGHT_CLICK_BLOCK) {
-				onRightClickBlockInteract(e);
-				if (e.getPlayer().isSneaking()) {
-					onRightClickBlockShiftInteract(e);
-				} else {
-					onRightClickBlockNoShiftInteract(e);
+			if (onBlockInteract(e)) {
+				if (e.getAction() == Action.LEFT_CLICK_BLOCK) {
+					if (onLeftClickBlockInteract(e)) {
+						if (e.getPlayer().isSneaking()) {
+							onLeftClickBlockShiftInteract(e);
+						} else {
+							onLeftClickBlockNoShiftInteract(e);
+						}
+					}
+				} else if (e.getAction() == Action.RIGHT_CLICK_BLOCK) {
+					if (onRightClickBlockInteract(e)) {
+						if (e.getPlayer().isSneaking()) {
+							onRightClickBlockShiftInteract(e);
+						} else {
+							onRightClickBlockNoShiftInteract(e);
+						}
+					}
 				}
 			}
 		} else if (e.getAction() == Action.LEFT_CLICK_AIR || e.getAction() == Action.RIGHT_CLICK_AIR) {
-			onAirInteract(e);
-			if (e.getAction() == Action.LEFT_CLICK_AIR) {
-				onLeftClickAirInteract(e);
-				if (e.getPlayer().isSneaking()) {
-					onLeftClickAirShiftInteract(e);
-				} else {
-					onLeftClickAirNoShiftInteract(e);
-				}
-			} else if (e.getAction() == Action.RIGHT_CLICK_AIR) {
-				onRightClickAirInteract(e);
-				if (e.getPlayer().isSneaking()) {
-					onRightClickAirShiftInteract(e);
-				} else {
-					onRightClickAirNoShiftInteract(e);
+			if (onAirInteract(e)) {
+				if (e.getAction() == Action.LEFT_CLICK_AIR) {
+					if (onLeftClickAirInteract(e)) {
+						if (e.getPlayer().isSneaking()) {
+							onLeftClickAirShiftInteract(e);
+						} else {
+							onLeftClickAirNoShiftInteract(e);
+						}
+					}
+				} else if (e.getAction() == Action.RIGHT_CLICK_AIR) {
+					if (onRightClickAirInteract(e)) {
+						if (e.getPlayer().isSneaking()) {
+							onRightClickAirShiftInteract(e);
+						} else {
+							onRightClickAirNoShiftInteract(e);
+						}
+					}
 				}
 			}
 		}
@@ -64,11 +70,13 @@ public interface PlayerInteractEventListener extends Listener {
 	 * Called when a player right clicks air with or without sneaking. After this
 	 * method is called,
 	 * {@link #onRightClickAirNoShiftInteract(PlayerInteractEvent)} or
-	 * {@link #onRightClickAirShiftInteract(PlayerInteractEvent)} will be called
+	 * {@link #onRightClickAirShiftInteract(PlayerInteractEvent)} will be called if
+	 * true is returned
 	 * 
 	 * @param e The event
+	 * @return True to continue with the line of the event, false to stop
 	 */
-	public void onRightClickAirInteract(PlayerInteractEvent e);
+	public boolean onRightClickAirInteract(PlayerInteractEvent e);
 
 	/**
 	 * Called when a player left clicks air without sneaking
@@ -88,19 +96,23 @@ public interface PlayerInteractEventListener extends Listener {
 	 * Called when a player left clicks air with or without sneaking. After this
 	 * method is called, {@link #onLeftClickAirNoShiftInteract(PlayerInteractEvent)}
 	 * or {@link #onLeftClickAirShiftInteract(PlayerInteractEvent)} will be called
+	 * if true is returned
 	 * 
 	 * @param e The event
+	 * @return True to continue with the line of the event, false to stop
 	 */
-	public void onLeftClickAirInteract(PlayerInteractEvent e);
+	public boolean onLeftClickAirInteract(PlayerInteractEvent e);
 
 	/**
 	 * Called when a player interacts with air. After this method is called,
 	 * {@link #onRightClickAirInteract(PlayerInteractEvent)} or
-	 * {@link #onLeftClickAirInteract(PlayerInteractEvent)} will be called
+	 * {@link #onLeftClickAirInteract(PlayerInteractEvent)} will be called if true
+	 * is returned
 	 * 
 	 * @param e The event
+	 * @return True to continue with the line of the event, false to stop
 	 */
-	public void onAirInteract(PlayerInteractEvent e);
+	public boolean onAirInteract(PlayerInteractEvent e);
 
 	/**
 	 * Called when a player right clicks a block without sneaking
@@ -120,10 +132,12 @@ public interface PlayerInteractEventListener extends Listener {
 	 * Called when a player right clicks a block with or without sneaking. After
 	 * this method, {@link #onRightClickBlockShiftInteract(PlayerInteractEvent)} or
 	 * {@link #onRightClickBlockNoShiftInteract(PlayerInteractEvent)} will be called
+	 * if true is returned
 	 * 
 	 * @param e The event
+	 * @return True to continue with the line of the event, false to stop
 	 */
-	public void onRightClickBlockInteract(PlayerInteractEvent e);
+	public boolean onRightClickBlockInteract(PlayerInteractEvent e);
 
 	/**
 	 * Called when a player left clicks a block without sneaking
@@ -143,18 +157,22 @@ public interface PlayerInteractEventListener extends Listener {
 	 * Called when a player left clicks a block with or without sneaking. After this
 	 * method, {@link #onLeftClickBlockShiftInteract(PlayerInteractEvent)} or
 	 * {@link #onLeftClickBlockNoShiftInteract(PlayerInteractEvent)} will be called
+	 * if true is returned
 	 * 
 	 * @param e The event
+	 * @return True to continue with the line of the event, false to stop
 	 */
-	public void onLeftClickBlockInteract(PlayerInteractEvent e);
+	public boolean onLeftClickBlockInteract(PlayerInteractEvent e);
 
 	/**
 	 * Called when a player interacts with a block. After this method is called,
 	 * {@link #onRightClickBlockInteract(PlayerInteractEvent)} or
-	 * {@link #onLeftClickBlockInteract(PlayerInteractEvent)} will be called
+	 * {@link #onLeftClickBlockInteract(PlayerInteractEvent)} will be called if true
+	 * is returned
 	 * 
 	 * @param e The event
+	 * @return True to continue with the line of the event, false to stop
 	 */
-	public void onBlockInteract(PlayerInteractEvent e);
+	public boolean onBlockInteract(PlayerInteractEvent e);
 
 }

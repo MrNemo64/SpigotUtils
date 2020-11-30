@@ -30,6 +30,8 @@ public class NFileConfiguration {
 
 	public NFileConfiguration(Plugin plugin, String name) {
 		this.name = name == null ? "config.yml" : name;
+		this.plugin = plugin;
+		setFile(new File(plugin.getDataFolder(), this.name));
 		reloadConfig();
 	}
 
@@ -45,7 +47,7 @@ public class NFileConfiguration {
 
 	public void reloadConfig() {
 		newConfig = YamlConfiguration.loadConfiguration(configFile);
-		final InputStream defConfigStream = plugin.getResource(name);
+		final InputStream defConfigStream = plugin.getResource(this.name);
 		if (defConfigStream == null)
 			return;
 		newConfig.setDefaults(YamlConfiguration.loadConfiguration(new InputStreamReader(defConfigStream, Charsets.UTF_8)));
@@ -57,6 +59,19 @@ public class NFileConfiguration {
 		} catch(IOException ex) {
 			plugin.getLogger().log(Level.SEVERE, "Could not save config to " + configFile, ex);
 		}
+	}
+
+	public void setFile(File file) {
+		if (file.getParentFile() != null)
+			if (!file.getParentFile().exists())
+				file.getParentFile().mkdirs();
+		if (!file.exists())
+			try {
+				file.createNewFile();
+			} catch(IOException e) {
+				plugin.getLogger().log(Level.SEVERE, "Couldn't create the file " + file.getAbsolutePath(), e);
+			}
+		this.configFile = file;
 	}
 
 	public Map<String, Object> getValues(boolean deep) {

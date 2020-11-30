@@ -1,8 +1,9 @@
 package me.nemo_64.spigot.spigotutils.events;
 
+import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEvent;
 
-public class PlayerInteractEventListenerAdapter implements PlayerInteractEventListener {
+public class PlayerInteractEventListenerAdapter implements PlayerInteractEventListener, Listener {
 
 	@Override
 	public void onRightClickAirNoShiftInteract(PlayerInteractEvent e) {}
@@ -11,7 +12,9 @@ public class PlayerInteractEventListenerAdapter implements PlayerInteractEventLi
 	public void onRightClickAirShiftInteract(PlayerInteractEvent e) {}
 
 	@Override
-	public void onRightClickAirInteract(PlayerInteractEvent e) {}
+	public boolean onRightClickAirInteract(PlayerInteractEvent e) {
+		return true;
+	}
 
 	@Override
 	public void onLeftClickAirNoShiftInteract(PlayerInteractEvent e) {}
@@ -20,10 +23,14 @@ public class PlayerInteractEventListenerAdapter implements PlayerInteractEventLi
 	public void onLeftClickAirShiftInteract(PlayerInteractEvent e) {}
 
 	@Override
-	public void onLeftClickAirInteract(PlayerInteractEvent e) {}
+	public boolean onLeftClickAirInteract(PlayerInteractEvent e) {
+		return true;
+	}
 
 	@Override
-	public void onAirInteract(PlayerInteractEvent e) {}
+	public boolean onAirInteract(PlayerInteractEvent e) {
+		return true;
+	}
 
 	@Override
 	public void onRightClickBlockNoShiftInteract(PlayerInteractEvent e) {}
@@ -32,7 +39,9 @@ public class PlayerInteractEventListenerAdapter implements PlayerInteractEventLi
 	public void onRightClickBlockShiftInteract(PlayerInteractEvent e) {}
 
 	@Override
-	public void onRightClickBlockInteract(PlayerInteractEvent e) {}
+	public boolean onRightClickBlockInteract(PlayerInteractEvent e) {
+		return true;
+	}
 
 	@Override
 	public void onLeftClickBlockNoShiftInteract(PlayerInteractEvent e) {}
@@ -41,9 +50,13 @@ public class PlayerInteractEventListenerAdapter implements PlayerInteractEventLi
 	public void onLeftClickBlockShiftInteract(PlayerInteractEvent e) {}
 
 	@Override
-	public void onLeftClickBlockInteract(PlayerInteractEvent e) {}
+	public boolean onLeftClickBlockInteract(PlayerInteractEvent e) {
+		return true;
+	}
 
 	@Override
-	public void onBlockInteract(PlayerInteractEvent e) {}
+	public boolean onBlockInteract(PlayerInteractEvent e) {
+		return true;
+	}
 
 }
