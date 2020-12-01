@@ -161,7 +161,8 @@ public class ReflectionUtils {
 			return null;
 		}
 	}
-	
+
+	// MrNemo64 start
 	public static Field getField(Class<?> clazz, String field) {
 		Field f = null;
 		try {
@@ -174,6 +175,19 @@ public class ReflectionUtils {
 		return f;
 	}
 
+	public static Field getDeclaratedField(Class<?> clazz, String field) {
+		Field f = null;
+		try {
+			f = clazz.getField(field);
+			if (f != null)
+				f.setAccessible(true);
+		} catch(NoSuchFieldException | SecurityException e) {
+			e.printStackTrace();
+		}
+		return f;
+	}
+
+	// This code was copyed from the class XMaterial
 	private static String getMajorVersion(@Nonnull String version) {
 		Validate.notEmpty(version, "Cannot get major Minecraft version from null or empty string");
 
@@ -194,5 +208,6 @@ public class ReflectionUtils {
 
 		return version;
 	}
+	// MrNemo64 end
 
 }
