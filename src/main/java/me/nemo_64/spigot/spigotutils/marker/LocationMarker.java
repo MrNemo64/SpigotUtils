@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
+import javax.annotation.Nonnull;
+
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -46,12 +48,11 @@ import me.nemo_64.spigot.spigotutils.xseries.ReflectionUtils;
 /**
  * Utility class for marking block using shulkers and NMS
  * 
- * @version 1.0
+ * @version 2.1
  * @author MrNemo64
  */
 public class LocationMarker {
 
-	private static Constructor<?> packetPlayOutScoreboardTeamConstructor;
 	private static Constructor<?> entityShulkerConstructor;
 	private static Constructor<?> packetPlayOutSpawnEntityLivingConstructor;
 	private static Constructor<?> packetPlayOutEntityMetadataConstructor;
@@ -65,28 +66,21 @@ public class LocationMarker {
 	private static Method entityShulkerGetIdMethod;
 	private static Method entityShulkerGetDataWatcherMethod;
 	private static Method entityShulkerGetUuidMethod;
-	private static Field entityTypesShulkerField;
-	private static Field packetPlayOutScoreboardTeamCreateField;
 	private static Field packetPlayOutScoreboardTeamNameField;
 	private static Field packetPlayOutScoreboardTeamColorField;
-	private static Field packetPlayOutScoreboardTeamOptionsField;
-	private static Field packetPlayOutScoreboardTeamEntitiesField;
+	private static Object entityTypesShulkerObject;
+	private static Object teamPacketObject;
+	private static Collection<String> entities;
 
 	static {
 		try {
 			Class<?> packetPlayOutScoreboardTeamClass = ReflectionUtils.getNMSClass("PacketPlayOutScoreboardTeam");
 			if (packetPlayOutScoreboardTeamClass != null) {
-				packetPlayOutScoreboardTeamConstructor = packetPlayOutScoreboardTeamClass.getConstructor();
-				packetPlayOutScoreboardTeamCreateField = packetPlayOutScoreboardTeamClass.getDeclaredField("i");
-				packetPlayOutScoreboardTeamCreateField.setAccessible(true);
+
 				packetPlayOutScoreboardTeamNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("a");
 				packetPlayOutScoreboardTeamNameField.setAccessible(true);
 				packetPlayOutScoreboardTeamColorField = packetPlayOutScoreboardTeamClass.getDeclaredField("g");
 				packetPlayOutScoreboardTeamColorField.setAccessible(true);
-				packetPlayOutScoreboardTeamOptionsField = packetPlayOutScoreboardTeamClass.getDeclaredField("j");
-				packetPlayOutScoreboardTeamOptionsField.setAccessible(true);
-				packetPlayOutScoreboardTeamEntitiesField = packetPlayOutScoreboardTeamClass.getDeclaredField("h");
-				packetPlayOutScoreboardTeamEntitiesField.setAccessible(true);
 			}
 			Class<?> entityLivingClass = ReflectionUtils.getNMSClass("EntityLiving");
 			Class<?> packetPlayOutSpawnEntityLivingClass = ReflectionUtils.getNMSClass("PacketPlayOutSpawnEntityLiving");
@@ -128,8 +122,10 @@ public class LocationMarker {
 				if (ReflectionUtils.VERSION_NUMBER >= 14) { // 1.14+
 					Class<?> entityTypesClass = ReflectionUtils.getNMSClass("EntityTypes");
 					if (entityTypesClass != null) {
-						entityTypesShulkerField = entityTypesClass.getField("SHULKER");
 						entityShulkerConstructor = entityShulkerClass.getConstructor(entityTypesClass, nmsWorldClass);
+						Field entityTypesShulkerField = entityTypesClass.getField("SHULKER");
+						if (entityTypesShulkerField != null)
+							entityTypesShulkerObject = entityTypesShulkerField.get(null);
 					}
 				} else {
 					entityShulkerConstructor = entityShulkerClass.getConstructor(nmsWorldClass);
@@ -141,6 +137,10 @@ public class LocationMarker {
 			e.printStackTrace();
 		} catch(NoSuchFieldException e) {
 			e.printStackTrace();
+		} catch(IllegalArgumentException e) {
+			e.printStackTrace();
+		} catch(IllegalAccessException e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -149,10 +149,9 @@ public class LocationMarker {
 	 * 
 	 * @param player The player
 	 * @param block  The block
-	 * @return The id of the shulker marking the block, null if no shulker was
-	 *         spawned
+	 * @return A {@link ShulkerMarker} with the data of the shulker
 	 */
-	public static Integer markBlock(Player player, Block block) {
+	public static ShulkerMarker markBlock(Player player, Block block) {
 		return markBlock(player, block, null);
 	}
 
@@ -162,10 +161,9 @@ public class LocationMarker {
 	 * @param player The player
 	 * @param block  The block
 	 * @param color  The color
-	 * @return The id of the shulker marking the block, null if no shulker was
-	 *         spawned
+	 * @return A {@link ShulkerMarker} with the data of the shulker
 	 */
-	public static Integer markBlock(Player player, Block block, ChatColor color) {
+	public static ShulkerMarker markBlock(Player player, Block block, ChatColor color) {
 		Location location = block.getLocation();
 		double x = location.getBlockX() + 0.5;
 		double y = location.getBlockY();
@@ -179,16 +177,15 @@ public class LocationMarker {
 	 * @param player    The player
 	 * @param color     The color
 	 * @param locations The locations
-	 * @return An array with all the ids of the spawned shulkers
+	 * @return A list of {@link ShulkerMarker} with the data of the shulkers
 	 */
-	public static Integer[] markLocations(Player player, ChatColor color, Location... locations) {
-		List<Integer> ids = new ArrayList<Integer>();
+	public static List<ShulkerMarker> markLocations(Player player, ChatColor color, Location... locations) {
+		List<ShulkerMarker> ids = new ArrayList<ShulkerMarker>();
 		for (Location l : locations) {
-			Integer id = markLocation(player, l, color);
-			if (id != null)
-				ids.add(id);
+			ShulkerMarker id = markLocation(player, l, color);
+			ids.add(id);
 		}
-		return ids.toArray(new Integer[ids.size()]);
+		return ids;
 	}
 
 	/**
@@ -196,9 +193,9 @@ public class LocationMarker {
 	 * 
 	 * @param player    The player
 	 * @param locations The locations
-	 * @return An array with all the ids of the spawned shulkers
+	 * @return A list of {@link ShulkerMarker} with the data of the shulkers
 	 */
-	public static Integer[] markLocations(Player player, Location... locations) {
+	public static List<ShulkerMarker> markLocations(Player player, Location... locations) {
 		return markLocations(player, null, locations);
 	}
 
@@ -207,24 +204,30 @@ public class LocationMarker {
 	 * 
 	 * @param player   The player
 	 * @param location The location
-	 * @return The id of the spawned shulker, null if no shulker was spawned
+	 * @param color    The color
+	 * @return A {@link ShulkerMarker} with the data of the shulker
 	 */
-	public static Integer markLocation(Player player, Location location, ChatColor color) {
+	@Nonnull
+	public static ShulkerMarker markLocation(Player player, Location location, ChatColor color) {
 		if (entityShulkerSetLocationMethod == null || entityShulkerSetInvisibleMethod == null
 				|| entityShulkerSetGlowingMethod == null || entityShulkerGetIdMethod == null
 				|| entityShulkerGetDataWatcherMethod == null || packetPlayOutSpawnEntityLivingConstructor == null
 				|| packetPlayOutEntityMetadataConstructor == null)
 			return null;
+		String uuid = null;
 		Integer id = null;
+		ShulkerMarker markerShulker = new ShulkerMarker(player);
 		Object shulker = createShulker(location.getWorld());
 		if (shulker == null)
 			return null;
 		Object idO = null;
+		Object uuidO = null;
 		try {
 			entityShulkerSetLocationMethod.invoke(shulker, location.getX(), location.getY(), location.getZ(), 0f, 0f);
 			entityShulkerSetInvisibleMethod.invoke(shulker, true);
 			entityShulkerSetGlowingMethod.invoke(shulker, true);
 			idO = entityShulkerGetIdMethod.invoke(shulker);
+			uuidO = entityShulkerGetUuidMethod.invoke(shulker);
 			Object dataWatcher = entityShulkerGetDataWatcherMethod.invoke(shulker);
 			if (dataWatcher == null)
 				return null;
@@ -246,9 +249,14 @@ public class LocationMarker {
 		} catch(InstantiationException e) {
 			e.printStackTrace();
 		}
-		if (idO != null && idO instanceof Integer)
+		if (idO != null && idO instanceof Integer && uuidO != null && uuidO instanceof UUID) {
 			id = (Integer) idO;
-		return id;
+			uuid = ((UUID) uuidO).toString();
+			markerShulker.setSpawned(true);
+		}
+		markerShulker.setId(id);
+		markerShulker.setUuid(uuid);
+		return markerShulker;
 	}
 
 	/**
@@ -277,26 +285,49 @@ public class LocationMarker {
 		return false;
 	}
 
+	@SuppressWarnings("unchecked")
 	private static Object createTeamPacket(ChatColor color, Object... shulkers) {
-		if (shulkers == null || shulkers.length == 0)
-			return null;
-		if (packetPlayOutScoreboardTeamCreateField == null || packetPlayOutScoreboardTeamNameField == null
-				|| packetPlayOutScoreboardTeamColorField == null || packetPlayOutScoreboardTeamOptionsField == null
-				|| packetPlayOutScoreboardTeamEntitiesField == null || packetPlayOutScoreboardTeamConstructor == null)
+		if (shulkers == null)
 			return null;
 		try {
-			Object teamPacket = packetPlayOutScoreboardTeamConstructor.newInstance();
-			packetPlayOutScoreboardTeamCreateField.set(teamPacket, 0); // Create a team
-			packetPlayOutScoreboardTeamNameField.set(teamPacket, createRandomTeamName(5)); // Team name. Random to avoid
-																																											// conflict
-			packetPlayOutScoreboardTeamColorField.set(teamPacket, MarkerColor.of(color).getEnumChatFormat()); // Set the color
-			packetPlayOutScoreboardTeamOptionsField.set(teamPacket, 0); // idk it just works
+			if (teamPacketObject == null) {
+				Class<?> packetPlayOutScoreboardTeamClass = ReflectionUtils.getNMSClass("PacketPlayOutScoreboardTeam");
+				if (packetPlayOutScoreboardTeamClass == null)
+					return null;
 
-			Object entitiesObj = packetPlayOutScoreboardTeamEntitiesField.get(teamPacket);
-			if (!(entitiesObj instanceof Collection<?>))
-				return null;
-			@SuppressWarnings("unchecked")
-			Collection<String> entities = (Collection<String>) entitiesObj;
+				Constructor<?> packetPlayOutScoreboardTeamConstructor = packetPlayOutScoreboardTeamClass.getConstructor();
+				if (packetPlayOutScoreboardTeamConstructor == null)
+					return null;
+
+				Field packetPlayOutScoreboardTeamCreateField = packetPlayOutScoreboardTeamClass.getDeclaredField("i");
+				if (packetPlayOutScoreboardTeamCreateField == null)
+					return null;
+				packetPlayOutScoreboardTeamCreateField.setAccessible(true);
+
+				Field packetPlayOutScoreboardTeamOptionsField = packetPlayOutScoreboardTeamClass.getDeclaredField("j");
+				if (packetPlayOutScoreboardTeamOptionsField == null)
+					return null;
+				packetPlayOutScoreboardTeamOptionsField.setAccessible(true);
+				Field packetPlayOutScoreboardTeamEntitiesField = packetPlayOutScoreboardTeamClass.getDeclaredField("h");
+				if (packetPlayOutScoreboardTeamEntitiesField == null)
+					return null;
+				packetPlayOutScoreboardTeamEntitiesField.setAccessible(true);
+
+				teamPacketObject = packetPlayOutScoreboardTeamConstructor.newInstance();
+				packetPlayOutScoreboardTeamCreateField.set(teamPacketObject, 0); // Create a team
+				packetPlayOutScoreboardTeamOptionsField.set(teamPacketObject, 0); // idk it just works
+				Object entitiesObj = packetPlayOutScoreboardTeamEntitiesField.get(teamPacketObject);
+				if (!(entitiesObj instanceof Collection<?>))
+					return null;
+				entities = (Collection<String>) entitiesObj;
+			}
+			packetPlayOutScoreboardTeamNameField.set(teamPacketObject, createRandomTeamName(5)); // Team name. Random to avoid
+																																														// conflict
+			Object colorId = MarkerColor.of(color).getEnumChatFormat();
+			packetPlayOutScoreboardTeamColorField.set(teamPacketObject,
+					colorId != null ? colorId : MarkerColor.WHITE.getEnumChatFormat()); // Set the color
+
+			entities.clear();
 			for (Object obj : shulkers) {
 				if (entityShulkerClass.isInstance(obj)) {
 					Object uuid = entityShulkerGetUuidMethod.invoke(obj);
@@ -305,17 +336,41 @@ public class LocationMarker {
 					}
 				}
 			}
-			return teamPacket;
-		} catch(InstantiationException e) {
-			e.printStackTrace();
-		} catch(IllegalAccessException e) {
-			e.printStackTrace();
-		} catch(IllegalArgumentException e) {
-			e.printStackTrace();
-		} catch(InvocationTargetException e) {
+			return teamPacketObject;
+		} catch(Exception e) {
 			e.printStackTrace();
 		}
 		return null;
+	}
+
+	/**
+	 * Updates the color of the given shulkers to the given players.
+	 * 
+	 * @param newColor The new color
+	 * @param player   The player
+	 * @param shulkers The uuid of the shulkers to update
+	 */
+	public static void changeColor(ChatColor newColor, Player player, String... shulkers) {
+		if (teamPacketObject == null)
+			teamPacketObject = createTeamPacket(null, new Object[] {});
+		try {
+			packetPlayOutScoreboardTeamNameField.set(teamPacketObject, createRandomTeamName(5)); // Team name, random to avoid
+																																														// conflict
+			Object colorId = MarkerColor.of(newColor).getEnumChatFormat();
+			packetPlayOutScoreboardTeamColorField.set(teamPacketObject,
+					colorId != null ? colorId : MarkerColor.WHITE.getEnumChatFormat()); // Set the color
+
+			entities.clear();
+			for (String str : shulkers) {
+				try {
+					UUID.fromString(str);
+					entities.add(str);
+				} catch(Exception e) {}
+			}
+			ReflectionUtils.sendPacket(player, teamPacketObject);
+		} catch(IllegalArgumentException | IllegalAccessException e1) {
+			e1.printStackTrace();
+		}
 	}
 
 	private static String createRandomTeamName(int size) {
@@ -327,14 +382,14 @@ public class LocationMarker {
 	private static Object createShulker(World world) {
 		if (entityShulkerConstructor == null || worldGetHandleMethod == null)
 			return null;
-		if (ReflectionUtils.VERSION_NUMBER >= 14 && entityTypesShulkerField == null)
+		if (ReflectionUtils.VERSION_NUMBER >= 14 && entityTypesShulkerObject == null)
 			return null;
 		Object w = worldToCraftWorld(world);
 		if (w == null)
 			return null;
 		try {
 			if (ReflectionUtils.VERSION_NUMBER >= 14) {
-				return entityShulkerConstructor.newInstance(entityTypesShulkerField.get(null), worldGetHandleMethod.invoke(w));
+				return entityShulkerConstructor.newInstance(entityTypesShulkerObject, worldGetHandleMethod.invoke(w));
 			} else {
 				return entityShulkerConstructor.newInstance(worldGetHandleMethod.invoke(w));
 			}
@@ -361,6 +416,123 @@ public class LocationMarker {
 		return null;
 	}
 
+	/**
+	 * Class to store data about a shulker marker
+	 * 
+	 * @author MrNemo64
+	 * @version 1.0
+	 */
+	public static class ShulkerMarker {
+
+		private Integer id;
+		private String uuid;
+		private Player player;
+		private boolean spawned;
+
+		protected ShulkerMarker(Player player) {
+			this.spawned = false;
+			this.player = player;
+			this.id = null;
+			this.uuid = null;
+		}
+
+		/**
+		 * Changes the color of this shulker. This method will only run if
+		 * {@link #wasSpawned()} returns true and {@link #getUniqueId()} does not return
+		 * null. To change the color the
+		 * {@link LocationMarker#changeColor(ChatColor, Player, String...)} is used. If
+		 * several shulkers are going to be updated to the same player with the same
+		 * color using {@link LocationMarker#changeColor(ChatColor, Player, String...)}
+		 * is recomended for faster updating
+		 * 
+		 * @param color The new color of the shulker
+		 */
+		public void changeColor(ChatColor color) {
+			if (wasSpawned() && getUniqueId() != null)
+				LocationMarker.changeColor(color, getPlayer(), getUniqueId());
+		}
+
+		/**
+		 * Deletes this shulker marker. This method will only run if
+		 * {@link #wasSpawned()} returns true and {@link #getId()} does not return null.
+		 * If several shulkers are going to be deleted to the same player
+		 * {@link LocationMarker#unmarkLocation(Player, int...)} is recomended for
+		 * faster unmarking
+		 */
+		public void delete() {
+			if (wasSpawned() && getId() == null)
+				return;
+			setSpawned(false);
+			LocationMarker.unmarkLocation(getPlayer(), getId());
+		}
+
+		/**
+		 * Gets the player that sees this shulker marker
+		 * 
+		 * @return The player
+		 */
+		public Player getPlayer() {
+			return player;
+		}
+
+		protected void setPlayer(Player player) {
+			this.player = player;
+		}
+
+		/**
+		 * Retuns true if the shulker was spawned
+		 * 
+		 * @return True if the shulker was spawned
+		 */
+		public boolean wasSpawned() {
+			return spawned;
+		}
+
+		protected void setSpawned(boolean spawned) {
+			this.spawned = spawned;
+		}
+
+		/**
+		 * Gets the id of the shulker. Used to delete the shulker
+		 * 
+		 * @return The id
+		 */
+		public Integer getId() {
+			return id;
+		}
+
+		protected void setId(Integer id) {
+			this.id = id;
+		}
+
+		/**
+		 * Gets the uuid of the shulker. Used to change the color of the shulker
+		 * 
+		 * @return
+		 */
+		public String getUniqueId() {
+			return uuid;
+		}
+
+		protected void setUuid(String uuid) {
+			this.uuid = uuid;
+		}
+
+		@Override
+		public String toString() {
+			return "ShulkerMarker{id=" + getId() + ", uuid=" + getUniqueId() + ", spawned=" + wasSpawned() + ", player="
+					+ player.getUniqueId().toString() + "}";
+		}
+
+	}
+
+	/**
+	 * Enum to store color data
+	 * 
+	 * @author MrNemo64
+	 * @version 1.0
+	 *
+	 */
 	public static enum MarkerColor {
 
 		BLACK(0, "BLACK", ChatColor.BLACK),
@@ -414,19 +586,41 @@ public class LocationMarker {
 			}
 		}
 
+		/**
+		 * Gets the EnumChatFormat for this color
+		 * 
+		 * @return The EnumChatFormat
+		 */
 		public Object getEnumChatFormat() {
 			return enumChatFormat;
 		}
 
+		/**
+		 * Gets a random color of {@link ChatColor}
+		 * 
+		 * @return A random colro of {@link ChatColor}
+		 */
 		public static ChatColor random() {
 			int id = new Random().nextInt(16);
 			return MarkerColor.of(id).color;
 		}
 
+		/**
+		 * Gets the package id for this color
+		 * 
+		 * @return The package id
+		 */
 		public int getPackageId() {
 			return id;
 		}
 
+		/**
+		 * Gets a color based on its package id
+		 * 
+		 * @param id The package id of the color
+		 * @return The {@link MarkerColor} with the given package id, {@link #NONE} if
+		 *         no color has that id
+		 */
 		public static MarkerColor of(int id) {
 			for (MarkerColor mc : values())
 				if (mc.id == id)
@@ -434,7 +628,16 @@ public class LocationMarker {
 			return NONE;
 		}
 
+		/**
+		 * Gets a color based on its {@link ChatColor}
+		 * 
+		 * @param color The {@link ChatColor} of the color
+		 * @return The {@link MarkerColor} with the given {@link ChatColor},
+		 *         {@link #NONE} if no color has that {@link ChatColor}
+		 */
 		public static MarkerColor of(ChatColor color) {
+			if (color == null)
+				return NONE;
 			for (MarkerColor mc : values())
 				if (mc.color != null)
 					if (mc.color == color)

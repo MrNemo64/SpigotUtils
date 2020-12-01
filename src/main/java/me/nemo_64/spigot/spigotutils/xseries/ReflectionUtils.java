@@ -21,16 +21,18 @@
  */
 package me.nemo_64.spigot.spigotutils.xseries;
 
-import org.apache.commons.lang.Validate;
-import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Field;
 import java.util.concurrent.CompletableFuture;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import org.apache.commons.lang.Validate;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 
 /**
  * <b>ReflectionUtils</b> - Reflection handler for NMS and CraftBukkit.<br>
@@ -158,6 +160,18 @@ public class ReflectionUtils {
 			ex.printStackTrace();
 			return null;
 		}
+	}
+	
+	public static Field getField(Class<?> clazz, String field) {
+		Field f = null;
+		try {
+			f = clazz.getField(field);
+			if (f != null)
+				f.setAccessible(true);
+		} catch(NoSuchFieldException | SecurityException e) {
+			e.printStackTrace();
+		}
+		return f;
 	}
 
 	private static String getMajorVersion(@Nonnull String version) {
