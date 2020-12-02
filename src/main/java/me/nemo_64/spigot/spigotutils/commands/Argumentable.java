@@ -64,7 +64,7 @@ public interface Argumentable {
 		Map<String, NArgument> allArgs = getArguments();
 		if (allArgs == null || allArgs.isEmpty()) // There are no arguments
 			return false;
-		return allArgs.containsKey(args[0].toLowerCase());
+		return allArgs.get(args[0].toLowerCase()) != null;
 	}
 
 	/**
