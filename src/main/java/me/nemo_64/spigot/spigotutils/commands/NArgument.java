@@ -6,4 +6,5 @@ public interface NArgument extends Argumentable {
 
 	public boolean onArgument(CommandSender sender, String[] args);
 
+	public String getName();
 }

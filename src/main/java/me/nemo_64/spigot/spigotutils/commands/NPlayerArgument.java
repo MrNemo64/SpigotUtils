@@ -11,14 +11,14 @@ public interface NPlayerArgument extends NConsoleArgument {
 			String message = getOnlyForPlayersMessage();
 			if (message != null)
 				sender.sendMessage(message);
-			return true;
+			return false;
 		}
 		String perm = getArgumentPermission();
 		if (perm != null && !hasPermission(sender, perm)) {
 			String notEnoughPermissions = getNotEnoughPermissionsMessage();
 			if (notEnoughPermissions != null)
 				sender.sendMessage(notEnoughPermissions);
-			return true;
+			return false;
 		}
 		return runArgument(sender, args);
 	}

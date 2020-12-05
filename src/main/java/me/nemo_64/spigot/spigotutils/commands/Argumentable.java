@@ -26,7 +26,10 @@ public interface Argumentable {
 	/**
 	 * Calls all next argumets.<br>
 	 * If true is returned, then
-	 * {@link NCommand#sendUssage(CommandSender, String[])} is called
+	 * {@link NCommand#sendUssage(CommandSender, String[])} is called.<br>
+	 * <b>If ussed incorrectly the arguments may be called more than ones,
+	 * {@link #callArgument(CommandSender, String[])} is recomended to be used
+	 * instead of this</b>
 	 * 
 	 * @param sender The sender
 	 * @param args   The arguments
@@ -61,6 +64,8 @@ public interface Argumentable {
 	 * @return True if the given arguments correspond to an argument
 	 */
 	public default boolean isNextArgument(String[] args) {
+		if (args.length == 0)
+			return false;
 		Map<String, NArgument> allArgs = getArguments();
 		if (allArgs == null || allArgs.isEmpty()) // There are no arguments
 			return false;
@@ -83,6 +88,15 @@ public interface Argumentable {
 	 * @param arg     The argument
 	 */
 	public void addArgument(String argName, NArgument arg);
+
+	/**
+	 * Adds an argument
+	 * 
+	 * @param arg The argument
+	 */
+	public default void addArgument(NArgument arg) {
+		addArgument(arg.getName(), arg);
+	}
 
 	/**
 	 * Removes an argument

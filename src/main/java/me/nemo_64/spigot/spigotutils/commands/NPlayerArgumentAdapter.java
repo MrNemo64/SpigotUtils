@@ -9,10 +9,12 @@ public abstract class NPlayerArgumentAdapter implements NPlayerArgument {
 	private String notEnoughPermissionsMessage;
 	private String argumentPermission;
 	private String onlyForPlayersMessage;
+	private String name;
 
-	public NPlayerArgumentAdapter(String argumentPermission, String notEnoughPermissionsMessage,
+	public NPlayerArgumentAdapter(String name, String argumentPermission, String notEnoughPermissionsMessage,
 			String onlyForPlayersMessage) {
 		arguments = new HashMap<String, NArgument>();
+		this.name = name;
 		this.argumentPermission = argumentPermission;
 		this.notEnoughPermissionsMessage = notEnoughPermissionsMessage;
 		this.onlyForPlayersMessage = onlyForPlayersMessage;
@@ -31,6 +33,11 @@ public abstract class NPlayerArgumentAdapter implements NPlayerArgument {
 	@Override
 	public String getOnlyForPlayersMessage() {
 		return onlyForPlayersMessage;
+	}
+
+	@Override
+	public String getName() {
+		return name;
 	}
 
 	@Override

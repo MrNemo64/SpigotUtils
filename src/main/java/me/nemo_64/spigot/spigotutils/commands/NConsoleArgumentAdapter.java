@@ -8,9 +8,11 @@ public abstract class NConsoleArgumentAdapter implements NConsoleArgument {
 	private Map<String, NArgument> arguments;
 	private String notEnoughPermissionsMessage;
 	private String argumentPermission;
+	private String name;
 
-	public NConsoleArgumentAdapter(String argumentPermission, String notEnoughPermissionsMessage) {
+	public NConsoleArgumentAdapter(String name, String argumentPermission, String notEnoughPermissionsMessage) {
 		arguments = new HashMap<String, NArgument>();
+		this.name = name;
 		this.argumentPermission = argumentPermission;
 		this.notEnoughPermissionsMessage = notEnoughPermissionsMessage;
 	}
@@ -23,6 +25,11 @@ public abstract class NConsoleArgumentAdapter implements NConsoleArgument {
 	@Override
 	public String getArgumentPermission() {
 		return argumentPermission;
+	}
+
+	@Override
+	public String getName() {
+		return name;
 	}
 
 	@Override

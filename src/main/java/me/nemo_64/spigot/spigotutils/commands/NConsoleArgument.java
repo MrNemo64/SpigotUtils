@@ -11,7 +11,7 @@ public interface NConsoleArgument extends NArgument {
 			String notEnoughPermissions = getNotEnoughPermissionsMessage();
 			if (notEnoughPermissions != null)
 				sender.sendMessage(notEnoughPermissions);
-			return true;
+			return false;
 		}
 		return runArgument(sender, args);
 	}
