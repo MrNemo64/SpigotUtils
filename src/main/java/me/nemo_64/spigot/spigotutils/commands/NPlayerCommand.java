@@ -28,6 +28,8 @@ public interface NPlayerCommand extends NConsoleCommand {
 
 	@Override
 	default boolean runCommand(CommandSender sender, String[] args) {
+		if (!(sender instanceof Player))
+			return false;
 		return runCommand((Player) sender, args);
 	}
 

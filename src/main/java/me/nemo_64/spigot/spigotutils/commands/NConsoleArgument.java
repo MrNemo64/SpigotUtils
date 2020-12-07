@@ -47,11 +47,4 @@ public interface NConsoleArgument extends NArgument {
 	 */
 	public String getNotEnoughPermissionsMessage();
 
-	/**
-	 * Gets the permission needed to run this command
-	 * 
-	 * @return The permission, null if no permission is needed
-	 */
-	public String getArgumentPermission();
-
 }

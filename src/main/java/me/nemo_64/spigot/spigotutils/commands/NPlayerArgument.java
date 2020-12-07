@@ -1,5 +1,8 @@
 package me.nemo_64.spigot.spigotutils.commands;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -25,7 +28,49 @@ public interface NPlayerArgument extends NConsoleArgument {
 
 	@Override
 	default boolean runArgument(CommandSender sender, String[] args) {
+		if (!(sender instanceof Player))
+			return false;
 		return runArgument((Player) sender, args);
+	}
+
+	@Override
+	default List<String> complete(CommandSender sender, String[] args) {
+		if (!(sender instanceof Player))
+			return null;
+		return complete((Player) sender, args);
+	}
+
+	public default List<String> complete(Player player, String[] args) {
+		return Arrays.asList(getName());
+	}
+
+	@Override
+	default boolean matches(CommandSender sender, String[] args) {
+		if (!(sender instanceof Player))
+			return false;
+		return matches((Player) sender, args);
+	}
+
+	default boolean matches(Player player, String[] args) {
+		String lastArg = args[args.length - 1].toLowerCase();
+		return lastArg.length() == 0 || getName().toLowerCase().contains(lastArg);
+	}
+
+	@Override
+	default NArgument findNextArgument(CommandSender sender, String[] args) {
+		if (!(sender instanceof Player))
+			return null;
+		return findNextArgument((Player) sender, args);
+	}
+
+	default NArgument findNextArgument(Player player, String[] args) {
+		if (args.length == 0 || getArguments().size() == 0)
+			return null;
+		String arg = args[0].toLowerCase();
+		for (NArgument nArg : getArguments().values())
+			if (nArg.matches(player, arg))
+				return nArg;
+		return null;
 	}
 
 	/**
@@ -47,4 +92,5 @@ public interface NPlayerArgument extends NConsoleArgument {
 	 * @return The message
 	 */
 	public String getOnlyForPlayersMessage();
+
 }
