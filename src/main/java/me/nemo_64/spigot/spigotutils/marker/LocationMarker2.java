@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.ChatColor;
@@ -22,9 +23,6 @@ import me.nemo_64.spigot.spigotutils.xseries.ReflectionUtils;
 
 /*
  * TODO:
- * 	Test unmarking system
- * 	Test marking system
- * 	Test color changing system
  * 	Create moving system
  */
 
@@ -60,6 +58,7 @@ public class LocationMarker2 {
 	private static Field packetPlayOutScoreboardTeamEntitiesField;
 	private static Field packetPlayOutScoreboardTeamNameField;
 	private static Field packetPlayOutScoreboardTeamColorField;
+	private static final int TEAM_NAME_SIZE = 5;
 
 	// Deleting shulker
 	private static Constructor<?> packetPlayOutEntityDestroyConstructor;
@@ -109,10 +108,10 @@ public class LocationMarker2 {
 			try {
 				Object uuidO = entityShulkerGetUuidMethod.invoke(shulker);
 				Object idO = entityShulkerGetIdMethod.invoke(shulker);
-				if (uuidO != null && uuidO instanceof String && idO != null && idO instanceof Integer) {
+				if (uuidO != null && uuidO instanceof UUID && idO != null && idO instanceof Integer) {
 					packetsToSend.add(packetPlayOutSpawnEntityLivingConstructor.newInstance(shulker));
 					packetsToSend.add(packetPlayOutEntityMetadataConstructor.newInstance(idO, datawatcher, true));
-					markers.add(new ShulkerMarker((Integer) idO, (String) uuidO, player, false));
+					markers.add(new ShulkerMarker((Integer) idO, ((UUID) uuidO).toString(), player, false));
 				}
 			} catch(IllegalAccessException | IllegalArgumentException | InvocationTargetException |
 							InstantiationException e) {
@@ -121,12 +120,12 @@ public class LocationMarker2 {
 		}
 
 		ReflectionUtils.sendPacketSync(player, packetsToSend.toArray());
-		SeveralShulkerMarker shulkerMarker = new SeveralShulkerMarker(player, createRandomTeamName(5), markers);
+		SeveralShulkerMarker shulkerMarker = new SeveralShulkerMarker(player, markers);
 		shulkerMarker.setSpawned(true);
 
 		// Color
 		if (markerColor != MarkerColor.NONE && markerColor != MarkerColor.WHITE)
-			changeColorSync(player, shulkerMarker.teamName, markerColor, shulkerMarker.getShulkersUniqueId());
+			changeColorSync(player, markerColor, shulkerMarker.getShulkersUniqueId());
 
 		return shulkerMarker;
 	}
@@ -201,12 +200,11 @@ public class LocationMarker2 {
 	 * 
 	 * @see #changeColor(Player, String, MarkerColor, String...)
 	 * @param player   The player that will see the change
-	 * @param teamName The name of the team. Can be null
 	 * @param color    The new color
 	 * @param shulkers The uuids of the shulkers as string
 	 */
-	public static void changeColorSync(Player player, String teamName, MarkerColor color, String... shulkers) {
-		Object packet = createTeamPacket(color, teamName == null ? createRandomTeamName(5) : teamName, shulkers);
+	public static void changeColorSync(Player player, MarkerColor color, String... shulkers) {
+		Object packet = createTeamPacket(color, createRandomTeamName(TEAM_NAME_SIZE), shulkers);
 		if (packet != null)
 			ReflectionUtils.sendPacketSync(player, packet);
 	}
@@ -219,14 +217,12 @@ public class LocationMarker2 {
 	 * 
 	 * @see #changeColorSync(Player, String, MarkerColor, String...)
 	 * @param player   The player that will see the change
-	 * @param teamName The name of the team. Can be null
 	 * @param color    The new color
 	 * @param shulkers The uuids of the shulkers as string
 	 */
-	public static CompletableFuture<Void> changeColor(Player player, String teamName, MarkerColor color,
-			String... shulkers) {
+	public static CompletableFuture<Void> changeColor(Player player, MarkerColor color, String... shulkers) {
 		return CompletableFuture.runAsync(() -> {
-			changeColorSync(player, teamName, color, shulkers);
+			changeColorSync(player, color, shulkers);
 		}).exceptionally((ex) -> {
 			ex.printStackTrace();
 			return null;
@@ -454,19 +450,17 @@ public class LocationMarker2 {
 	public static class SeveralShulkerMarker implements Iterable<ShulkerMarker> {
 
 		private ShulkerMarker[] shulkers;
-		private String teamName;
 		private Player player;
 		private boolean spawned;
 
-		public SeveralShulkerMarker(Player player, String teamName, ShulkerMarker... markers) {
+		public SeveralShulkerMarker(Player player, ShulkerMarker... markers) {
 			this.player = player;
-			this.teamName = teamName;
 			this.shulkers = markers;
 			this.spawned = false;
 		}
 
-		public SeveralShulkerMarker(Player player, String teamName, List<ShulkerMarker> markers) {
-			this(player, teamName, markers.toArray(new ShulkerMarker[0]));
+		public SeveralShulkerMarker(Player player, List<ShulkerMarker> markers) {
+			this(player, markers.toArray(new ShulkerMarker[0]));
 		}
 
 		/**
@@ -479,7 +473,7 @@ public class LocationMarker2 {
 		 * @return The async thread handling the packet
 		 */
 		public CompletableFuture<Void> changeColor(ChatColor newColor) {
-			return LocationMarker2.changeColor(player, teamName, MarkerColor.of(newColor), getShulkersUniqueId());
+			return LocationMarker2.changeColor(player, MarkerColor.of(newColor), getShulkersUniqueId());
 		}
 
 		/**
@@ -492,7 +486,7 @@ public class LocationMarker2 {
 		 * @param newColor
 		 */
 		public void changeColorSync(ChatColor newColor) {
-			LocationMarker2.changeColorSync(player, teamName, MarkerColor.of(newColor), getShulkersUniqueId());
+			LocationMarker2.changeColorSync(player, MarkerColor.of(newColor), getShulkersUniqueId());
 		}
 
 		/**
@@ -541,14 +535,6 @@ public class LocationMarker2 {
 			for (ShulkerMarker shulkerMarker : shulkers)
 				ids.add(shulkerMarker.id);
 			return ids.stream().mapToInt(i -> i).toArray();
-		}
-
-		public String getTeamName() {
-			return teamName;
-		}
-
-		protected void setTeamName(String teamName) {
-			this.teamName = teamName;
 		}
 
 		protected void setSpawned(boolean spawned) {
