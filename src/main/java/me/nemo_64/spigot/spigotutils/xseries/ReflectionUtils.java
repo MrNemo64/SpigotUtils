@@ -126,19 +126,7 @@ public class ReflectionUtils {
 	@Nonnull
 	public static CompletableFuture<Void> sendPacket(@Nonnull Player player, @Nonnull Object... packets) {
 		return CompletableFuture.runAsync(() -> {
-			try {
-				Object handle = GET_HANDLE.invoke(player);
-				Object connection = PLAYER_CONNECTION.invoke(handle);
-
-				// Checking if the connection is not null is enough. There is no need to check
-				// if the player is online.
-				if (connection != null) {
-					for (Object packet : packets)
-						SEND_PACKET.invoke(connection, packet);
-				}
-			} catch(Throwable throwable) {
-				throwable.printStackTrace();
-			}
+			sendPacketSync(player, packets);
 		}).exceptionally(ex -> {
 			ex.printStackTrace();
 			return null;
@@ -163,6 +151,29 @@ public class ReflectionUtils {
 	}
 
 	// MrNemo64 start
+
+	/**
+	 * Sends the packets if the player is online
+	 * 
+	 * @param player  The player
+	 * @param packets The packets
+	 */
+	public static void sendPacketSync(@Nonnull Player player, @Nonnull Object... packets) {
+		try {
+			Object handle = GET_HANDLE.invoke(player);
+			Object connection = PLAYER_CONNECTION.invoke(handle);
+
+			// Checking if the connection is not null is enough. There is no need to check
+			// if the player is online.
+			if (connection != null) {
+				for (Object packet : packets)
+					SEND_PACKET.invoke(connection, packet);
+			}
+		} catch(Throwable throwable) {
+			throwable.printStackTrace();
+		}
+	}
+
 	public static Field getField(Class<?> clazz, String field) {
 		Field f = null;
 		try {

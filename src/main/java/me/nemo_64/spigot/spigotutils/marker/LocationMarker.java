@@ -74,21 +74,29 @@ public class LocationMarker {
 
 	static {
 		try {
+			// Load the necessary fields to create the team package.
+			// The team package is used to change the color of the shulker
 			Class<?> packetPlayOutScoreboardTeamClass = ReflectionUtils.getNMSClass("PacketPlayOutScoreboardTeam");
 			if (packetPlayOutScoreboardTeamClass != null) {
-
+				// We need this field to set a name for the team
 				packetPlayOutScoreboardTeamNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("a");
 				packetPlayOutScoreboardTeamNameField.setAccessible(true);
+				// We need this field to set the color of the team
 				packetPlayOutScoreboardTeamColorField = packetPlayOutScoreboardTeamClass.getDeclaredField("g");
 				packetPlayOutScoreboardTeamColorField.setAccessible(true);
 			}
+
+			// We need this class to get the packet to spawn the shulkers
 			Class<?> entityLivingClass = ReflectionUtils.getNMSClass("EntityLiving");
+			// The packet that spawns an entity client-side
 			Class<?> packetPlayOutSpawnEntityLivingClass = ReflectionUtils.getNMSClass("PacketPlayOutSpawnEntityLiving");
-			if (packetPlayOutSpawnEntityLivingClass != null) {
+			if (packetPlayOutSpawnEntityLivingClass != null && entityLivingClass != null) {
 				packetPlayOutSpawnEntityLivingConstructor = packetPlayOutSpawnEntityLivingClass
 						.getConstructor(entityLivingClass);
 			}
 
+			// All spawned entityes need a data watcher, we need to provide the data watcher
+			// when spawning an entity
 			Class<?> packetPlayOutEntityMetadataClass = ReflectionUtils.getNMSClass("PacketPlayOutEntityMetadata");
 			if (packetPlayOutEntityMetadataClass != null) {
 				Class<?> dataWatcherClass = ReflectionUtils.getNMSClass("DataWatcher");
@@ -97,27 +105,34 @@ public class LocationMarker {
 							dataWatcherClass, boolean.class);
 			}
 
+			// We use this package to remove entityes
 			Class<?> packetPlayOutEntityDestroyClass = ReflectionUtils.getNMSClass("PacketPlayOutEntityDestroy");
 			if (packetPlayOutEntityDestroyClass != null)
 				packetPlayOutEntityDestroyConstructor = packetPlayOutEntityDestroyClass.getConstructor(int[].class);
 
+			// Need the CraftWorld to cast worlds to craftworlds
 			craftWorldClass = ReflectionUtils.getCraftClass("CraftWorld");
 			if (craftWorldClass != null) {
+				// Need the getHandle to get the nms version of the world
 				worldGetHandleMethod = craftWorldClass.getMethod("getHandle");
 			}
 
+			// The shulker class
 			entityShulkerClass = ReflectionUtils.getNMSClass("EntityShulker");
 			if (entityShulkerClass != null) {
+				// Some necesary methods of the shulker class
 				entityShulkerGetUuidMethod = entityShulkerClass.getMethod("getUniqueID");
 				entityShulkerSetLocationMethod = entityShulkerClass.getMethod("setLocation", double.class, double.class,
 						double.class, float.class, float.class);
 				entityShulkerSetInvisibleMethod = entityShulkerClass.getMethod("setInvisible", boolean.class);
-				entityShulkerSetGlowingMethod = entityShulkerClass.getMethod("h", boolean.class);
+				entityShulkerSetGlowingMethod = entityShulkerClass.getMethod("h", boolean.class); // To set the shulker glowing
 				entityShulkerGetIdMethod = entityShulkerClass.getMethod("getId");
 				entityShulkerGetDataWatcherMethod = entityShulkerClass.getMethod("getDataWatcher");
 			}
 
+			// NMS version of the world class
 			Class<?> nmsWorldClass = ReflectionUtils.getNMSClass("World");
+			// The constructor of the entityes changes between versions
 			if (entityShulkerClass != null && nmsWorldClass != null) {
 				if (ReflectionUtils.VERSION_NUMBER >= 14) { // 1.14+
 					Class<?> entityTypesClass = ReflectionUtils.getNMSClass("EntityTypes");
@@ -164,11 +179,7 @@ public class LocationMarker {
 	 * @return A {@link ShulkerMarker} with the data of the shulker
 	 */
 	public static ShulkerMarker markBlock(Player player, Block block, ChatColor color) {
-		Location location = block.getLocation();
-		double x = location.getBlockX() + 0.5;
-		double y = location.getBlockY();
-		double z = location.getBlockZ() + 0.5;
-		return markLocation(player, new Location(location.getWorld(), x, y, z), color);
+		return markLocation(player, block.getLocation().add(0.5, 0, 0.5), color);
 	}
 
 	/**
@@ -180,11 +191,9 @@ public class LocationMarker {
 	 * @return A list of {@link ShulkerMarker} with the data of the shulkers
 	 */
 	public static List<ShulkerMarker> markLocations(Player player, ChatColor color, Location... locations) {
-		List<ShulkerMarker> ids = new ArrayList<ShulkerMarker>();
-		for (Location l : locations) {
-			ShulkerMarker id = markLocation(player, l, color);
-			ids.add(id);
-		}
+		List<ShulkerMarker> ids = new ArrayList<ShulkerMarker>(locations.length);
+		for (Location l : locations)
+			ids.add(markLocation(player, l, color));
 		return ids;
 	}
 
@@ -285,6 +294,36 @@ public class LocationMarker {
 		return false;
 	}
 
+	/**
+	 * Updates the color of the given shulkers to the given players.
+	 * 
+	 * @param newColor The new color
+	 * @param player   The player
+	 * @param shulkers The uuid of the shulkers to update
+	 */
+	public static void changeColor(ChatColor newColor, Player player, String... shulkers) {
+		if (teamPacketObject == null)
+			teamPacketObject = createTeamPacket(null, new Object[] {});
+		try {
+			packetPlayOutScoreboardTeamNameField.set(teamPacketObject, createRandomTeamName(5)); // Team name, random to avoid
+																																														// conflict
+			Object colorId = MarkerColor.of(newColor).getEnumChatFormat();
+			packetPlayOutScoreboardTeamColorField.set(teamPacketObject,
+					colorId != null ? colorId : MarkerColor.WHITE.getEnumChatFormat()); // Set the color
+
+			entities.clear();
+			for (String str : shulkers) {
+				try {
+					UUID.fromString(str);
+					entities.add(str);
+				} catch(Exception e) {}
+			}
+			ReflectionUtils.sendPacket(player, teamPacketObject);
+		} catch(IllegalArgumentException | IllegalAccessException e1) {
+			e1.printStackTrace();
+		}
+	}
+
 	@SuppressWarnings("unchecked")
 	private static Object createTeamPacket(ChatColor color, Object... shulkers) {
 		if (shulkers == null)
@@ -342,37 +381,7 @@ public class LocationMarker {
 		}
 		return null;
 	}
-
-	/**
-	 * Updates the color of the given shulkers to the given players.
-	 * 
-	 * @param newColor The new color
-	 * @param player   The player
-	 * @param shulkers The uuid of the shulkers to update
-	 */
-	public static void changeColor(ChatColor newColor, Player player, String... shulkers) {
-		if (teamPacketObject == null)
-			teamPacketObject = createTeamPacket(null, new Object[] {});
-		try {
-			packetPlayOutScoreboardTeamNameField.set(teamPacketObject, createRandomTeamName(5)); // Team name, random to avoid
-																																														// conflict
-			Object colorId = MarkerColor.of(newColor).getEnumChatFormat();
-			packetPlayOutScoreboardTeamColorField.set(teamPacketObject,
-					colorId != null ? colorId : MarkerColor.WHITE.getEnumChatFormat()); // Set the color
-
-			entities.clear();
-			for (String str : shulkers) {
-				try {
-					UUID.fromString(str);
-					entities.add(str);
-				} catch(Exception e) {}
-			}
-			ReflectionUtils.sendPacket(player, teamPacketObject);
-		} catch(IllegalArgumentException | IllegalAccessException e1) {
-			e1.printStackTrace();
-		}
-	}
-
+	
 	private static String createRandomTeamName(int size) {
 		byte[] array = new byte[size];
 		new Random().nextBytes(array);
