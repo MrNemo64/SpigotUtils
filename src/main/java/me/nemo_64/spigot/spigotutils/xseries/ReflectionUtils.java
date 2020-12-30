@@ -186,15 +186,11 @@ public class ReflectionUtils {
 		return f;
 	}
 
-	public static Field getDeclaratedField(Class<?> clazz, String field) {
+	public static Field getDeclaredField(Class<?> clazz, String field) throws NoSuchFieldException, SecurityException {
 		Field f = null;
-		try {
-			f = clazz.getField(field);
+			f = clazz.getDeclaredField(field);
 			if (f != null)
 				f.setAccessible(true);
-		} catch(NoSuchFieldException | SecurityException e) {
-			e.printStackTrace();
-		}
 		return f;
 	}
 

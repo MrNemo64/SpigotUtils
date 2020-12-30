@@ -8,7 +8,6 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -23,7 +22,7 @@ import me.nemo_64.spigot.spigotutils.xseries.ReflectionUtils;
 
 /*
  * TODO:
- * 	Create moving system
+ * 	Test moving system
  */
 
 /**
@@ -63,15 +62,27 @@ public class LocationMarker2 {
 	// Deleting shulker
 	private static Constructor<?> packetPlayOutEntityDestroyConstructor;
 
+	// Moving shulkers
+	private static Constructor<?> packetPlayOutEntityTeleportConstructor;
+	private static Field packetPlayOutEntityTeleportShulkerIdField;
+	private static Field packetPlayOutEntityTeleportXField;
+	private static Field packetPlayOutEntityTeleportYField;
+	private static Field packetPlayOutEntityTeleportZField;
+	private static Field packetPlayOutEntityTeleportYawField;
+	private static Field packetPlayOutEntityTeleportPitchField;
+	private static Field packetPlayOutEntityTeleportOnGroundField;
+
+	private LocationMarker2() {}
+
 	/**
 	 * Marks all the given locations to the player in the thread that is called
 	 * 
 	 * @see #markLocations(Player, ChatColor, Location...)
-	 * @param player    The player
+	 * @param players   The player
 	 * @param color     The color of the shulkers
 	 * @param locations The locations to mark
 	 */
-	public static SeveralShulkerMarker markLocationsSync(Player player, ChatColor color, Location... locations) {
+	public static SeveralShulkerMarker markLocationsSync(Player[] players, ChatColor color, Location... locations) {
 		if (entityShulkerGetUuidMethod == null || entityShulkerGetIdMethod == null) {
 			try {
 				loadReflectionShulker();
@@ -83,7 +94,7 @@ public class LocationMarker2 {
 		}
 		if (packetPlayOutSpawnEntityLivingConstructor == null || packetPlayOutEntityMetadataConstructor == null) {
 			try {
-				loadReflectionSpawnEntityes();
+				loadReflectionSpawn();
 			} catch(NoSuchMethodException | SecurityException e) {
 				e.printStackTrace();
 				return null;
@@ -111,7 +122,7 @@ public class LocationMarker2 {
 				if (uuidO != null && uuidO instanceof UUID && idO != null && idO instanceof Integer) {
 					packetsToSend.add(packetPlayOutSpawnEntityLivingConstructor.newInstance(shulker));
 					packetsToSend.add(packetPlayOutEntityMetadataConstructor.newInstance(idO, datawatcher, true));
-					markers.add(new ShulkerMarker((Integer) idO, ((UUID) uuidO).toString(), player, false));
+					markers.add(new ShulkerMarker((Integer) idO, ((UUID) uuidO).toString(), location.clone()));
 				}
 			} catch(IllegalAccessException | IllegalArgumentException | InvocationTargetException |
 							InstantiationException e) {
@@ -119,13 +130,14 @@ public class LocationMarker2 {
 			}
 		}
 
-		ReflectionUtils.sendPacketSync(player, packetsToSend.toArray());
-		SeveralShulkerMarker shulkerMarker = new SeveralShulkerMarker(player, markers);
-		shulkerMarker.setSpawned(true);
+		Object[] packets = packetsToSend.toArray();
+		for (Player player : players)
+			ReflectionUtils.sendPacketSync(player, packets);
+		SeveralShulkerMarker shulkerMarker = new SeveralShulkerMarker(players, markers.toArray(new ShulkerMarker[0]));
 
 		// Color
 		if (markerColor != MarkerColor.NONE && markerColor != MarkerColor.WHITE)
-			changeColorSync(player, markerColor, shulkerMarker.getShulkersUniqueId());
+			changeColorSync(players, markerColor, shulkerMarker.getShulkersUniqueId());
 
 		return shulkerMarker;
 	}
@@ -134,14 +146,20 @@ public class LocationMarker2 {
 	 * Marks all the given locations to the player asynchronously since packets are
 	 * thread safe. This is achived by callig
 	 * {@link LocationMarker2#markLocationsSync(Player, ChatColor, Location...)} in
-	 * a completable future.
+	 * a {@link CompletableFuture}. <br>
+	 * If used in the
+	 * {@link CompletableFuture#thenAccept(java.util.function.Consumer)},
+	 * {@link #markLocationsSync(Player[], ChatColor, Location...)} should probably
+	 * be used instead to avoid creating too many threads. Since the thenAccept
+	 * method stil runs in the thread created by the completable future all the code
+	 * will be runned async so there is no need to run it async again
 	 * 
 	 * @see #markLocationsSync(Player, ChatColor, Location...)
 	 * @param player The player
 	 * @param ids    The ids of the shulkers that mark the locations to be removed
 	 * @return The async thread handling the packet
 	 */
-	public static CompletableFuture<SeveralShulkerMarker> markLocations(Player player, ChatColor color,
+	public static CompletableFuture<SeveralShulkerMarker> markLocations(Player[] player, ChatColor color,
 			Location... locations) {
 		return CompletableFuture.supplyAsync(() -> {
 			return markLocationsSync(player, color, locations);
@@ -155,10 +173,10 @@ public class LocationMarker2 {
 	 * Unmarks all the given locations to the player in the thread that is called
 	 * 
 	 * @see #unmarkLocations(Player, int...)
-	 * @param player The player
-	 * @param ids    The ids of the shulkers that mark the locations to be removed
+	 * @param players The player
+	 * @param ids     The ids of the shulkers that mark the locations to be removed
 	 */
-	public static void unmarkLocationsSync(Player player, int... ids) {
+	public static void unmarkLocationsSync(Player[] players, int... ids) {
 		if (packetPlayOutEntityDestroyConstructor == null) {
 			try {
 				loadReflectionEntityDestroy();
@@ -169,7 +187,8 @@ public class LocationMarker2 {
 		}
 		try {
 			Object packetPlayOutEntityDestroy = packetPlayOutEntityDestroyConstructor.newInstance(ids);
-			ReflectionUtils.sendPacketSync(player, packetPlayOutEntityDestroy);
+			for (Player player : players)
+				ReflectionUtils.sendPacketSync(player, packetPlayOutEntityDestroy);
 		} catch(InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
 			e.printStackTrace();
 		}
@@ -179,14 +198,20 @@ public class LocationMarker2 {
 	 * Unmarks all the given locations to the player asynchronously since packets
 	 * are thread safe. This is achived by callig
 	 * {@link LocationMarker2#unmarkLocationsSync(Player, int...)} in a completable
-	 * future.
+	 * future.<br>
+	 * If used in the
+	 * {@link CompletableFuture#thenAccept(java.util.function.Consumer)},
+	 * {@link #unmarkLocationsSync(Player[], int...)} should probably be used
+	 * instead to avoid creating too many threads. Since the thenAccept method stil
+	 * runs in the thread created by the completable future all the code will be
+	 * runned async so there is no need to run it async again
 	 * 
 	 * @see #unmarkLocationsSync(Player, int...)
 	 * @param player The player
 	 * @param ids    The ids of the shulkers that mark the locations to be removed
 	 * @return The async thread handling the packet
 	 */
-	public static CompletableFuture<Void> unmarkLocations(Player player, int... ids) {
+	public static CompletableFuture<Void> unmarkLocations(Player[] player, int... ids) {
 		return CompletableFuture.runAsync(() -> {
 			unmarkLocationsSync(player, ids);
 		}).exceptionally((ex) -> {
@@ -198,32 +223,86 @@ public class LocationMarker2 {
 	/**
 	 * Changes the color of all the given shulkers in the thread that is called
 	 * 
-	 * @see #changeColor(Player, String, MarkerColor, String...)
-	 * @param player   The player that will see the change
+	 * @see #changeColor(Player, MarkerColor, String...)
+	 * @param players  The player that will see the change
 	 * @param color    The new color
 	 * @param shulkers The uuids of the shulkers as string
 	 */
-	public static void changeColorSync(Player player, MarkerColor color, String... shulkers) {
+	public static void changeColorSync(Player[] players, MarkerColor color, String... shulkers) {
 		Object packet = createTeamPacket(color, createRandomTeamName(TEAM_NAME_SIZE), shulkers);
 		if (packet != null)
-			ReflectionUtils.sendPacketSync(player, packet);
+			for (Player player : players)
+				ReflectionUtils.sendPacketSync(player, packet);
 	}
 
 	/**
 	 * Changes the color of all the given shulkers asynchronously since packets are
 	 * thread safe. This is achived by callig
-	 * {@link #changeColorSync(Player, String, MarkerColor, String...)} in a
-	 * completable future.
+	 * {@link #changeColorSync(Player, MarkerColor, String...)} in a completable
+	 * future.<br>
+	 * If used in the
+	 * {@link CompletableFuture#thenAccept(java.util.function.Consumer)},
+	 * {@link #changeColorSync(Player[], MarkerColor, String...)} should probably be
+	 * used instead to avoid creating too many threads. Since the thenAccept method
+	 * stil runs in the thread created by the completable future all the code will
+	 * be runned async so there is no need to run it async again
 	 * 
-	 * @see #changeColorSync(Player, String, MarkerColor, String...)
-	 * @param player   The player that will see the change
+	 * @see #changeColorSync(Player, MarkerColor, String...)
+	 * @param players  The player that will see the change
 	 * @param color    The new color
 	 * @param shulkers The uuids of the shulkers as string
+	 * @return The async thread handling the packet
 	 */
-	public static CompletableFuture<Void> changeColor(Player player, MarkerColor color, String... shulkers) {
+	public static CompletableFuture<Void> changeColor(Player[] players, MarkerColor color, String... shulkers) {
 		return CompletableFuture.runAsync(() -> {
-			changeColorSync(player, color, shulkers);
+			changeColorSync(players, color, shulkers);
 		}).exceptionally((ex) -> {
+			ex.printStackTrace();
+			return null;
+		});
+	}
+
+	/**
+	 * Changes the position of all the given shulker in the thread that is called
+	 * 
+	 * @see #moveMarker(Player[], int, double, double, double)
+	 * @param players The player that will see the change
+	 * @param id      The id of the shulker
+	 * @param x       The new x
+	 * @param y       The new y
+	 * @param z       The new z
+	 */
+	public static void moveMarkerSync(Player[] players, int id, double x, double y, double z) {
+		Object packet = createTeleportPacket(id, x, y, z);
+		if (packet != null)
+			for (Player player : players)
+				ReflectionUtils.sendPacketSync(player, packet);
+	}
+
+	/**
+	 * Changes the position of all the given shulker asynchronously since packets
+	 * are thread safe. This is achived by callig
+	 * {@link #moveMarkerSync(Player[], int, double, double, double)} in a
+	 * {@link CompletableFuture}.<br>
+	 * If used in the
+	 * {@link CompletableFuture#thenAccept(java.util.function.Consumer)},
+	 * {@link #moveMarkerSync(Player[], int, double, double, double)} should
+	 * probably be used instead to avoid creating too many threads. Since the
+	 * thenAccept method stil runs in the thread created by the completable future
+	 * all the code will be runned async so there is no need to run it async again
+	 * 
+	 * @see #moveMarkerSync(Player[], int, double, double, double)
+	 * @param players The player that will see the change
+	 * @param id      The id of the shulker
+	 * @param x       The new x
+	 * @param y       The new y
+	 * @param z       The new z
+	 * @return The async thread handling the packet
+	 */
+	public static CompletableFuture<Void> moveMarker(Player[] players, int id, double x, double y, double z) {
+		return CompletableFuture.runAsync(() -> {
+			moveMarkerSync(players, id, x, y, z);
+		}).exceptionally(ex -> {
 			ex.printStackTrace();
 			return null;
 		});
@@ -282,7 +361,7 @@ public class LocationMarker2 {
 			entityTypesShulkerObject = entityTypesShulkerField.get(null);
 	}
 
-	private static void loadReflectionSpawnEntityes() throws NoSuchMethodException, SecurityException {
+	private static void loadReflectionSpawn() throws NoSuchMethodException, SecurityException {
 		// We need this class to get the packet to spawn the shulkers
 		Class<?> entityLivingClass = ReflectionUtils.getNMSClass("EntityLiving");
 		// The packet that spawns an entity client-side
@@ -310,25 +389,32 @@ public class LocationMarker2 {
 
 		packetPlayOutScoreboardTeamConstructor = packetPlayOutScoreboardTeamClass.getConstructor();
 
-		packetPlayOutScoreboardTeamCreateField = packetPlayOutScoreboardTeamClass.getDeclaredField("i");
-		if (packetPlayOutScoreboardTeamCreateField != null)
-			packetPlayOutScoreboardTeamCreateField.setAccessible(true);
+		packetPlayOutScoreboardTeamCreateField = ReflectionUtils.getDeclaredField(packetPlayOutScoreboardTeamClass, "i");
+		packetPlayOutScoreboardTeamOptionsField = ReflectionUtils.getDeclaredField(packetPlayOutScoreboardTeamClass, "j");
+		packetPlayOutScoreboardTeamEntitiesField = ReflectionUtils.getDeclaredField(packetPlayOutScoreboardTeamClass, "h");
+		packetPlayOutScoreboardTeamNameField = ReflectionUtils.getDeclaredField(packetPlayOutScoreboardTeamClass, "a");
+		packetPlayOutScoreboardTeamColorField = ReflectionUtils.getDeclaredField(packetPlayOutScoreboardTeamClass, "g");
+	}
 
-		packetPlayOutScoreboardTeamOptionsField = packetPlayOutScoreboardTeamClass.getDeclaredField("j");
-		if (packetPlayOutScoreboardTeamOptionsField != null)
-			packetPlayOutScoreboardTeamOptionsField.setAccessible(true);
+	private static void loadReflectionTeleport() throws NoSuchMethodException, SecurityException, NoSuchFieldException {
+		Class<?> packetPlayOutEntityTeleportClass = ReflectionUtils.getNMSClass("PacketPlayOutEntityTeleport");
+		if (packetPlayOutEntityTeleportClass == null)
+			return;
+		packetPlayOutEntityTeleportConstructor = packetPlayOutEntityTeleportClass.getConstructor();
 
-		packetPlayOutScoreboardTeamEntitiesField = packetPlayOutScoreboardTeamClass.getDeclaredField("h");
-		if (packetPlayOutScoreboardTeamEntitiesField != null)
-			packetPlayOutScoreboardTeamEntitiesField.setAccessible(true);
+		packetPlayOutEntityTeleportShulkerIdField = ReflectionUtils.getDeclaredField(packetPlayOutEntityTeleportClass, "a");
+		packetPlayOutEntityTeleportXField = ReflectionUtils.getDeclaredField(packetPlayOutEntityTeleportClass, "b");
+		packetPlayOutEntityTeleportYField = ReflectionUtils.getDeclaredField(packetPlayOutEntityTeleportClass, "c");
+		packetPlayOutEntityTeleportZField = ReflectionUtils.getDeclaredField(packetPlayOutEntityTeleportClass, "d");
+		packetPlayOutEntityTeleportYawField = ReflectionUtils.getDeclaredField(packetPlayOutEntityTeleportClass, "e");
+		packetPlayOutEntityTeleportPitchField = ReflectionUtils.getDeclaredField(packetPlayOutEntityTeleportClass, "f");
+		packetPlayOutEntityTeleportOnGroundField = ReflectionUtils.getDeclaredField(packetPlayOutEntityTeleportClass, "g");
 
-		packetPlayOutScoreboardTeamNameField = packetPlayOutScoreboardTeamClass.getDeclaredField("a");
-		if (packetPlayOutScoreboardTeamNameField != null)
-			packetPlayOutScoreboardTeamNameField.setAccessible(true);
-
-		packetPlayOutScoreboardTeamColorField = packetPlayOutScoreboardTeamClass.getDeclaredField("g");
-		if (packetPlayOutScoreboardTeamColorField != null)
-			packetPlayOutScoreboardTeamColorField.setAccessible(true);
+		if (entityShulkerSetLocationMethod == null) {
+			Class<?> entityShulkerClass = ReflectionUtils.getNMSClass("EntityShulker");
+			entityShulkerSetLocationMethod = entityShulkerClass.getMethod("setLocation", double.class, double.class,
+					double.class, float.class, float.class);
+		}
 	}
 
 	private static Object createShulkerAt(Location location) {
@@ -424,6 +510,34 @@ public class LocationMarker2 {
 		return null;
 	}
 
+	private static Object createTeleportPacket(int shulkerId, double x, double y, double z) {
+		if (packetPlayOutEntityTeleportConstructor == null || packetPlayOutEntityTeleportShulkerIdField == null
+				|| packetPlayOutEntityTeleportXField == null || packetPlayOutEntityTeleportYField == null
+				|| packetPlayOutEntityTeleportZField == null || packetPlayOutEntityTeleportYawField == null
+				|| packetPlayOutEntityTeleportPitchField == null || packetPlayOutEntityTeleportOnGroundField == null) {
+			try {
+				loadReflectionTeleport();
+			} catch(NoSuchMethodException | SecurityException | NoSuchFieldException e) {
+				e.printStackTrace();
+				return null;
+			}
+		}
+		try {
+			Object packet = packetPlayOutEntityTeleportConstructor.newInstance();
+			packetPlayOutEntityTeleportShulkerIdField.set(packet, shulkerId);
+			packetPlayOutEntityTeleportXField.set(packet, x);
+			packetPlayOutEntityTeleportYField.set(packet, y);
+			packetPlayOutEntityTeleportZField.set(packet, z);
+			packetPlayOutEntityTeleportYawField.set(packet, (byte) 0);
+			packetPlayOutEntityTeleportPitchField.set(packet, (byte) 0);
+			packetPlayOutEntityTeleportOnGroundField.set(packet, true);
+			return packet;
+		} catch(InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+
 	private static Object worldToCraftWorld(World world) {
 		if (craftWorldClass == null)
 			return null;
@@ -447,58 +561,109 @@ public class LocationMarker2 {
 	 * @author MrNemo64
 	 * @version 1.0
 	 */
-	public static class SeveralShulkerMarker implements Iterable<ShulkerMarker> {
+	public static class SeveralShulkerMarker {
 
-		private ShulkerMarker[] shulkers;
-		private Player player;
-		private boolean spawned;
+		private final ShulkerMarker[] shulkers;
+		private final Player[] players;
 
-		public SeveralShulkerMarker(Player player, ShulkerMarker... markers) {
-			this.player = player;
+		public SeveralShulkerMarker(Player[] players, ShulkerMarker[] markers) {
+			this.players = players;
 			this.shulkers = markers;
-			this.spawned = false;
-		}
-
-		public SeveralShulkerMarker(Player player, List<ShulkerMarker> markers) {
-			this(player, markers.toArray(new ShulkerMarker[0]));
 		}
 
 		/**
-		 * Changes the color of all the locations handled by this
-		 * {@link SeveralShulkerMarker} object. This is achived by calling the
-		 * {@link LocationMarker2#changeColor(Player, String, MarkerColor, String...)}
-		 * method
+		 * Moves the markers to a new location asynchronously since packets are thread
+		 * safe. This is done calling {@link #moveMarkersSync(Location[])} in a
+		 * {@link CompletableFuture}. If the locations are less than the amount of
+		 * markers handled by this object only the first markers are moved.<br>
+		 * If used in the
+		 * {@link CompletableFuture#thenAccept(java.util.function.Consumer)},
+		 * {@link #moveMarkersSync(Location[])} should probably be used instead to avoid
+		 * creating too many threads. Since the thenAccept method stil runs in the
+		 * thread created by the completable future all the code will be runned async so
+		 * there is no need to run it async again
+		 * 
+		 * @param newLocations The new locations
+		 * @throws IllegalArgumentException if more locations than markers handles this
+		 *                                  object are provided
+		 */
+		public CompletableFuture<Void> moveMarkers(Location[] newLocations) {
+			return CompletableFuture.runAsync(() -> {
+				moveMarkersSync(newLocations);
+			}).exceptionally((ex) -> {
+				ex.printStackTrace();
+				return null;
+			});
+		}
+
+		/**
+		 * Moves the markers to a new location in the thread that is called. If the
+		 * locations are less than the amount of markers handled by this object only the
+		 * first markers are moved
+		 * 
+		 * @param newLocations The new locations
+		 * @throws IllegalArgumentException if more locations than markers handles this
+		 *                                  object are provided
+		 */
+		public void moveMarkersSync(Location[] newLocations) {
+			if (newLocations.length > shulkers.length)
+				throw new IllegalArgumentException("Too many locations where provided");
+			for (int i = 0; i < newLocations.length; i++) {
+				LocationMarker2.moveMarkerSync(getPlayers(), shulkers[i].getId(), newLocations[i].getX(),
+						newLocations[i].getY(), newLocations[i].getZ());
+			}
+		}
+
+		/**
+		 * Changes the color of all the markers handled by this
+		 * {@link SeveralShulkerMarker} object asynchronously since packets are thread
+		 * safe. This is achived by calling the
+		 * {@link LocationMarker2#changeColor(Player, MarkerColor, String...)} method in
+		 * a {@link CompletableFuture}<br>
+		 * If used in the
+		 * {@link CompletableFuture#thenAccept(java.util.function.Consumer)},
+		 * {@link #changeColorSync(ChatColor)} should probably be used instead to avoid
+		 * creating too many threads. Since the thenAccept method stil runs in the
+		 * thread created by the completable future all the code will be runned async so
+		 * there is no need to run it async again
 		 * 
 		 * @param newColor
 		 * @return The async thread handling the packet
 		 */
 		public CompletableFuture<Void> changeColor(ChatColor newColor) {
-			return LocationMarker2.changeColor(player, MarkerColor.of(newColor), getShulkersUniqueId());
+			return LocationMarker2.changeColor(players, MarkerColor.of(newColor), getShulkersUniqueId());
 		}
 
 		/**
-		 * Changes the color of all the locations handled by this
-		 * {@link SeveralShulkerMarker} object. This is achived by calling the
-		 * {@link LocationMarker2#changeColorSync(Player, String, MarkerColor, String...)}
+		 * Changes the color of all the colors handled by this
+		 * {@link SeveralShulkerMarker} object in the threat that is called. This is
+		 * achived by calling the
+		 * {@link LocationMarker2#changeColorSync(Player, MarkerColor, String...)}
 		 * method
 		 * 
 		 * @see #changeColor(ChatColor)
 		 * @param newColor
 		 */
 		public void changeColorSync(ChatColor newColor) {
-			LocationMarker2.changeColorSync(player, MarkerColor.of(newColor), getShulkersUniqueId());
+			LocationMarker2.changeColorSync(players, MarkerColor.of(newColor), getShulkersUniqueId());
 		}
 
 		/**
 		 * Unmarks all the marked locations handled by this {@link SeveralShulkerMarker}
-		 * object. This is achived by calling the
-		 * {@link LocationMarker2#unmarkLocations(Player, int...)} method
+		 * object asynchronously since packets are thread safe. This is achived by
+		 * calling the {@link LocationMarker2#unmarkLocations(Player, int...)}<br>
+		 * If used in the
+		 * {@link CompletableFuture#thenAccept(java.util.function.Consumer)},
+		 * {@link #unmarkSync()} should probably be used instead to avoid creating too
+		 * many threads. Since the thenAccept method stil runs in the thread created by
+		 * the completable future all the code will be runned async so there is no need
+		 * to run it async again
 		 * 
 		 * @see #unmarkSync()
 		 * @return The async thread handling the packet
 		 */
 		public CompletableFuture<Void> unmark() {
-			return LocationMarker2.unmarkLocations(player, getShulkersId());
+			return LocationMarker2.unmarkLocations(players, getShulkersId());
 		}
 
 		/**
@@ -509,12 +674,7 @@ public class LocationMarker2 {
 		 * @see #unmark()
 		 */
 		public void unmarkSync() {
-			LocationMarker2.unmarkLocationsSync(player, getShulkersId());
-		}
-
-		@Override
-		public Iterator<ShulkerMarker> iterator() {
-			return Arrays.asList(shulkers).iterator();
+			LocationMarker2.unmarkLocationsSync(players, getShulkersId());
 		}
 
 		/**
@@ -537,14 +697,18 @@ public class LocationMarker2 {
 			return ids.stream().mapToInt(i -> i).toArray();
 		}
 
-		protected void setSpawned(boolean spawned) {
-			this.spawned = spawned;
-			for (ShulkerMarker marker : shulkers)
-				marker.setSpawned(spawned);
+		/**
+		 * Gets all the {@link ShulkerMarker} handled by this object
+		 */
+		public ShulkerMarker[] getShulkers() {
+			return shulkers;
 		}
 
-		public boolean areSpawned() {
-			return spawned;
+		/**
+		 * Gets all the players that see this {@link SeveralShulkerMarker}
+		 */
+		public Player[] getPlayers() {
+			return players;
 		}
 
 	}
@@ -557,77 +721,14 @@ public class LocationMarker2 {
 	 */
 	public static class ShulkerMarker {
 
-		private Integer id;
-		private String uuid;
-		private Player player;
-		private boolean spawned;
+		private final Integer id;
+		private final String uuid;
+		private Location pos;
 
-		public ShulkerMarker(Integer id, String uuid, Player player, boolean spawned) {
-			super();
+		public ShulkerMarker(Integer id, String uuid, Location pos) {
 			this.id = id;
 			this.uuid = uuid;
-			this.player = player;
-			this.spawned = spawned;
-		}
-
-		protected ShulkerMarker(Player player) {
-			this(null, null, player, false);
-		}
-
-		/**
-		 * Changes the color of this shulker. This method will only run if
-		 * {@link #wasSpawned()} returns true and {@link #getUniqueId()} does not return
-		 * null. To change the color the
-		 * {@link LocationMarker#changeColor(ChatColor, Player, String...)} is used. If
-		 * several shulkers are going to be updated to the same player with the same
-		 * color using {@link LocationMarker#changeColor(ChatColor, Player, String...)}
-		 * is recomended for faster updating
-		 * 
-		 * @param color The new color of the shulker
-		 */
-		public void changeColor(ChatColor color) {
-			if (wasSpawned() && getUniqueId() != null)
-				LocationMarker.changeColor(color, getPlayer(), getUniqueId());
-		}
-
-		/**
-		 * Deletes this shulker marker. This method will only run if
-		 * {@link #wasSpawned()} returns true and {@link #getId()} does not return null.
-		 * If several shulkers are going to be deleted to the same player
-		 * {@link LocationMarker#unmarkLocation(Player, int...)} is recomended for
-		 * faster unmarking
-		 */
-		public void delete() {
-			if (wasSpawned() && getId() == null)
-				return;
-			setSpawned(false);
-			LocationMarker2.unmarkLocations(getPlayer(), getId());
-		}
-
-		/**
-		 * Gets the player that sees this shulker marker
-		 * 
-		 * @return The player
-		 */
-		public Player getPlayer() {
-			return player;
-		}
-
-		protected void setPlayer(Player player) {
-			this.player = player;
-		}
-
-		/**
-		 * Retuns true if the shulker was spawned
-		 * 
-		 * @return True if the shulker was spawned
-		 */
-		public boolean wasSpawned() {
-			return spawned;
-		}
-
-		protected void setSpawned(boolean spawned) {
-			this.spawned = spawned;
+			this.pos = pos;
 		}
 
 		/**
@@ -639,10 +740,6 @@ public class LocationMarker2 {
 			return id;
 		}
 
-		protected void setId(Integer id) {
-			this.id = id;
-		}
-
 		/**
 		 * Gets the uuid of the shulker. Used to change the color of the shulker
 		 * 
@@ -652,14 +749,28 @@ public class LocationMarker2 {
 			return uuid;
 		}
 
-		protected void setUuid(String uuid) {
-			this.uuid = uuid;
+		/**
+		 * Gets the location of this marker. May not be acurate if the location is
+		 * modified using
+		 * {@link LocationMarker2#moveMarker(Player[], int, double, double, double)} or
+		 * {@link LocationMarker2#moveMarkerSync(Player[], int, double, double, double)}
+		 * without updating it with {@link #setPos(Location)}
+		 */
+		public Location getPos() {
+			return pos;
+		}
+
+		/**
+		 * Sets the location of this marker. Calling this method will not move the
+		 * marker automaticly
+		 */
+		public void setPos(Location pos) {
+			this.pos = pos;
 		}
 
 		@Override
 		public String toString() {
-			return "ShulkerMarker{id=" + getId() + ", uuid=" + getUniqueId() + ", spawned=" + wasSpawned() + ", player="
-					+ player.getUniqueId().toString() + "}";
+			return "ShulkerMarker{id=" + getId() + ", uuid=" + getUniqueId() + ", pos=" + pos.toString() + "}";
 		}
 
 	}
@@ -734,13 +845,11 @@ public class LocationMarker2 {
 		}
 
 		/**
-		 * Gets a random color of {@link ChatColor}
-		 * 
-		 * @return A random colro of {@link ChatColor}
+		 * Gets a random color of {@link MarkerColor}
 		 */
-		public static ChatColor random() {
+		public static MarkerColor random() {
 			int id = new Random().nextInt(16);
-			return MarkerColor.of(id).color;
+			return MarkerColor.of(id);
 		}
 
 		/**
