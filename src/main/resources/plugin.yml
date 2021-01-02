@@ -1,0 +1,10 @@
+name: SpigotUtils
+main: me.nemo_64.spigot.spigotutils.test.Main
+version: 0.0
+api-version: 1.14
+author: Nemo_64
+
+commands:
+  test:
+    description: test command
+    aliases: t
