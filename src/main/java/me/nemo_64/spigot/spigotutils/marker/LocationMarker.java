@@ -44,6 +44,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 
 import me.nemo_64.spigot.spigotutils.xseries.ReflectionUtils;
@@ -180,14 +181,58 @@ public class LocationMarker {
 	 * will be runned async so there is no need to run it async again
 	 * 
 	 * @see #markLocationsSync(Player, ChatColor, Location...)
-	 * @param player The player
-	 * @param ids    The ids of the shulkers that mark the locations to be removed
+	 * @param players   The player
+	 * @param color     The color of the shulkers
+	 * @param locations The locations to mark
 	 * @return The async thread handling the packet with the markers
 	 */
 	public static CompletableFuture<MarkersDataManager> markLocations(Player[] player, ChatColor color,
 			Location... locations) {
 		return CompletableFuture.supplyAsync(() -> {
 			return markLocationsSync(player, color, locations);
+		}).exceptionally(ex -> {
+			ex.printStackTrace();
+			return null;
+		});
+	}
+
+	/**
+	 * Marks all the given blocks to the player in the thread that is called
+	 * 
+	 * @see #markBlocksPlayer, ChatColor, Location...)
+	 * @param players The player
+	 * @param color   The color of the shulkers
+	 * @param blocks  The locations to mark
+	 * @return The async thread handling the packet with the markers
+	 */
+	public static MarkersDataManager markBlocksSync(Player[] players, ChatColor color, Block... blocks) {
+		Location[] locs = new Location[blocks.length];
+		for (int i = 0; i < blocks.length; i++)
+			locs[i] = blocks[i].getLocation().add(0.5, 0, 0.5);
+		return markLocationsSync(players, color, locs);
+	}
+
+	/**
+	 * Marks all the given blocks to the player asynchronously since packets are
+	 * thread safe. This is achived by callig
+	 * {@link LocationMarker#markBlocksSync(Player, ChatColor, Blocks...)} in a
+	 * {@link CompletableFuture}. <br>
+	 * If used in the
+	 * {@link CompletableFuture#thenAccept(java.util.function.Consumer)},
+	 * {@link #markBlocksSync(Player[], ChatColor, Block...)} should probably be
+	 * used instead to avoid creating too many threads. Since the thenAccept method
+	 * stil runs in the thread created by the completable future all the code will
+	 * be runned async so there is no need to run it async again
+	 * 
+	 * @see #markBlocksSync(Player, ChatColor, Location...)
+	 * @param players The player
+	 * @param color   The color of the shulkers
+	 * @param blocks  The locations to mark
+	 * @return The async thread handling the packet with the markers
+	 */
+	public static CompletableFuture<MarkersDataManager> markBlocks(Player[] players, ChatColor color, Block... blocks) {
+		return CompletableFuture.supplyAsync(() -> {
+			return markBlocksSync(players, color, blocks);
 		}).exceptionally(ex -> {
 			ex.printStackTrace();
 			return null;
